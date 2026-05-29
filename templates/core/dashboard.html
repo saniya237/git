@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard — CodeMedic{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h1>Welcome back, {{ username }} 👋</h1>
+    <p>Here's an overview of your code analysis history.</p>
+</div>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-label">Total Analyses</div>
+        <div class="stat-value">{{ total_analyses }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Bugs Found</div>
+        <div class="stat-value">{{ total_bugs }}</div>
+    </div>
+    <div class="stat-card">
+        <div class="stat-label">Languages Used</div>
+        <div class="stat-value">{{ languages_used }}</div>
+    </div>
+</div>
+
+<div class="section-title">Recent Analyses</div>
+
+{% if recent_logs %}
+    <div class="logs-grid">
+        {% for session in recent_logs %}
+            <div class="log-card">
+                <div class="log-card-header">
+                    <div class="log-lang-badge lang-{{ session.language }}">
+                        {{ session.get_language_display }}
+                    </div>
+                    <span class="risk-badge risk-{{ session.risk_level }}">
+                        {{ session.get_risk_level_display }}
+                    </span>
+                </div>
+
+                <div class="log-card-body">
+                    <div class="log-meta">
+                        <span>
+                            <i class="fa-solid fa-bug"></i>
+                            {{ session.error_count }} bug{{ session.error_count|pluralize }} found
+                        </span>
+                        <span>
+                            <i class="fa-solid fa-clock"></i>
+                            {{ session.created_at|date:"d M Y, h:i A" }}
+                        </span>
+                    </div>
+                    <div class="log-code-preview">
+                        {{ session.code|truncatechars:120 }}
+                    </div>
+                </div>
+
+                <div class="log-card-footer">
+                    <a href="{% url 'core:session_detail' session.id %}" class="btn-view">
+                        <i class="fa-solid fa-eye"></i> View Report
+                    </a>
+                    <form method="POST" action="{% url 'core:session_delete' session.id %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-delete" onclick="return confirm('Delete this session?')">
+                            <i class="fa-solid fa-trash"></i> Delete
+                        </button>
+                    </form>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="empty-state">
+        <i class="fa-solid fa-file-code"></i>
+        <p>No analyses yet. Head to the workspace to analyse your first piece of code!</p>
+    </div>
+{% endif %}
+
+{% endblock %}
