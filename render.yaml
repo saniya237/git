@@ -1,0 +1,37 @@
+services:
+  - type: web
+    name: codemedic
+    env: python
+    buildCommand: "./build.sh"
+    startCommand: "gunicorn config.wsgi:application"
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "False"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: DB_HOST
+        fromDatabase:
+          name: codemedic-db
+          property: host
+      - key: DB_NAME
+        fromDatabase:
+          name: codemedic-db
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: codemedic-db
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: codemedic-db
+          property: password
+      - key: DB_PORT
+        fromDatabase:
+          name: codemedic-db
+          property: port
+
+databases:
+  - name: codemedic-db
+    plan: free

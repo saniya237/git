@@ -1,0 +1,251 @@
+{% extends 'base.html' %}
+
+{% block title %}Workspace — CodeMedic{% endblock %}
+
+{% block content %}
+
+<div class="workspace-header">
+    <div>
+        <h1>Code Workspace</h1>
+        <p>Paste your code, select a language and click Analyse.</p>
+    </div>
+    <a href="{% url 'core:dashboard' %}" class="btn-back">
+        <i class="fa-solid fa-arrow-left"></i> Dashboard
+    </a>
+</div>
+
+<div class="workspace-grid">
+
+    <div class="editor-panel">
+        <div class="editor-toolbar">
+            <div class="lang-selector-wrap">
+                <i class="fa-solid fa-code"></i>
+                <select id="language-select" class="lang-select">
+                    <option value="python">Python</option>
+                    <option value="c">C</option>
+                    <option value="cpp">C++</option>
+                    <option value="java">Java</option>
+                </select>
+            </div>
+            <div class="line-counter-wrap">
+                <span id="line-count">1 / 100 lines</span>
+            </div>
+            <button id="clear-btn" class="btn-clear">
+                <i class="fa-solid fa-rotate-left"></i> Clear
+            </button>
+        </div>
+
+        <div id="editor-wrapper">
+            <textarea id="code-editor"></textarea>
+        </div>
+
+        <div id="line-warning" class="line-warning hidden">
+            <i class="fa-solid fa-triangle-exclamation"></i>
+            Maximum 100 lines allowed. Please shorten your code.
+        </div>
+
+        <div class="editor-footer">
+            <button id="analyse-btn" class="btn-analyse">
+                <i class="fa-solid fa-magnifying-glass-chart"></i>
+                Analyse Code
+            </button>
+        </div>
+    </div>
+
+    <div class="results-panel">
+        <div id="results-placeholder" class="results-placeholder">
+            <i class="fa-solid fa-stethoscope"></i>
+            <p>Your analysis results will appear here.</p>
+            <span>Write or paste your code and click Analyse.</span>
+        </div>
+
+        <div id="results-loading" class="results-loading hidden">
+            <div class="spinner"></div>
+            <p>Analysing your code...</p>
+        </div>
+
+        <div id="results-content" class="hidden">
+            <div class="results-summary">
+                <div class="summary-item">
+                    <span class="summary-label">Bugs Found</span>
+                    <span id="summary-count" class="summary-value">0</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Risk Level</span>
+                    <span id="summary-risk" class="risk-badge">Safe</span>
+                </div>
+                <a id="summary-link" href="#" class="btn-view" style="text-decoration:none;">
+                    <i class="fa-solid fa-eye"></i> Full Report
+                </a>
+            </div>
+
+            <div id="bugs-container"></div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/clike/clike.min.js"></script>
+
+<script>
+const CSRF_TOKEN = '{{ csrf_token }}';
+
+const modeMap = {
+    python: 'python',
+    c:      'text/x-csrc',
+    cpp:    'text/x-c++src',
+    java:   'text/x-java',
+};
+
+const editor = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
+    lineNumbers: true,
+    theme: 'dracula',
+    mode: 'python',
+    indentWithTabs: false,
+    tabSize: 4,
+    lineWrapping: true,
+    autofocus: true,
+});
+
+editor.setSize('100%', '460px');
+
+document.getElementById('language-select').addEventListener('change', function() {
+    editor.setOption('mode', modeMap[this.value]);
+});
+
+editor.on('change', function() {
+    const lines = editor.lineCount();
+    document.getElementById('line-count').textContent = lines + ' / 100 lines';
+    if (lines > 100) {
+        document.getElementById('line-warning').classList.remove('hidden');
+        document.getElementById('analyse-btn').disabled = true;
+    } else {
+        document.getElementById('line-warning').classList.add('hidden');
+        document.getElementById('analyse-btn').disabled = false;
+    }
+});
+
+document.getElementById('clear-btn').addEventListener('click', function() {
+    editor.setValue('');
+    document.getElementById('results-content').classList.add('hidden');
+    document.getElementById('results-placeholder').classList.remove('hidden');
+    document.getElementById('bugs-container').innerHTML = '';
+});
+
+document.getElementById('analyse-btn').addEventListener('click', function() {
+    const code = editor.getValue().trim();
+    const language = document.getElementById('language-select').value;
+
+    if (!code) {
+        alert('Please enter some code first.');
+        return;
+    }
+
+    document.getElementById('results-placeholder').classList.add('hidden');
+    document.getElementById('results-content').classList.add('hidden');
+    document.getElementById('results-loading').classList.remove('hidden');
+
+    for (let i = 0; i < editor.lineCount(); i++) {
+        editor.removeLineClass(i, 'background', 'bug-highlight');
+    }
+
+    $.ajax({
+        url: '{% url "core:analyse" %}',
+        method: 'POST',
+        contentType: 'application/json',
+        headers: { 'X-CSRFToken': CSRF_TOKEN },
+        data: JSON.stringify({ code: code, language: language }),
+        success: function(response) {
+            document.getElementById('results-loading').classList.add('hidden');
+            document.getElementById('results-content').classList.remove('hidden');
+
+            document.getElementById('summary-count').textContent = response.error_count;
+            const riskEl = document.getElementById('summary-risk');
+            riskEl.textContent = response.risk_display;
+            riskEl.className = 'risk-badge risk-' + response.risk_level;
+            document.getElementById('summary-link').href = '/session/' + response.session_id + '/';
+
+            const container = document.getElementById('bugs-container');
+            container.innerHTML = '';
+
+            if (response.bugs.length === 0) {
+                container.innerHTML = `
+                    <div class="no-bugs">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <p>No bugs found! Your code looks clean.</p>
+                    </div>`;
+            } else {
+                response.bugs.forEach(function(bug) {
+                    highlightLine(bug.line - 1);
+                    container.innerHTML += `
+                        <div class="bug-card bug-${bug.type}" id="bug-card-${bug.id}">
+                            <div class="bug-card-header">
+                                <span class="bug-type-badge bug-type-${bug.type}">${bug.type_display}</span>
+                                <span class="bug-line"><i class="fa-solid fa-code"></i> Line ${bug.line}</span>
+                            </div>
+                            <div class="bug-description">
+                                <div class="bug-section-label">
+                                    <i class="fa-solid fa-circle-exclamation"></i> What's wrong
+                                </div>
+                                <p>${bug.description}</p>
+                            </div>
+                            <div class="bug-fix">
+                                <div class="bug-section-label fix-label">
+                                    <i class="fa-solid fa-lightbulb"></i> Fix suggestion
+                                </div>
+                                <p>${bug.fix}</p>
+                            </div>
+                            <div class="bug-feedback">
+                                <span class="feedback-label">Was this helpful?</span>
+                                <button class="btn-feedback btn-correct" onclick="submitFeedback(${bug.id}, 'correct', this)">
+                                    <i class="fa-solid fa-thumbs-up"></i> Yes
+                                </button>
+                                <button class="btn-feedback btn-incorrect" onclick="submitFeedback(${bug.id}, 'incorrect', this)">
+                                    <i class="fa-solid fa-thumbs-down"></i> No
+                                </button>
+                            </div>
+                        </div>`;
+                });
+            }
+        },
+        error: function(xhr) {
+            document.getElementById('results-loading').classList.add('hidden');
+            document.getElementById('results-placeholder').classList.remove('hidden');
+            alert('Analysis failed: ' + (xhr.responseJSON?.error || 'Unknown error'));
+        }
+    });
+});
+
+function highlightLine(lineIndex) {
+    editor.addLineClass(lineIndex, 'background', 'bug-highlight');
+}
+
+function submitFeedback(bugId, verdict, btn) {
+    $.ajax({
+        url: '{% url "core:feedback" %}',
+        method: 'POST',
+        contentType: 'application/json',
+        headers: { 'X-CSRFToken': CSRF_TOKEN },
+        data: JSON.stringify({ bug_id: bugId, verdict: verdict }),
+        success: function(response) {
+            const card = btn.closest('.bug-feedback');
+            card.querySelectorAll('.btn-feedback').forEach(b => {
+                b.classList.remove('btn-feedback-active');
+                b.disabled = false;
+            });
+            btn.classList.add('btn-feedback-active');
+            btn.disabled = true;
+        },
+        error: function() {
+            alert('Could not save feedback. Please try again.');
+        }
+    });
+}
+</script>
+{% endblock %}

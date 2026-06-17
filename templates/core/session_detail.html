@@ -1,0 +1,74 @@
+{% extends 'base.html' %}
+
+{% block title %}Bug Report — CodeMedic{% endblock %}
+
+{% block content %}
+
+<div class="detail-header">
+    <a href="{% url 'core:dashboard' %}" class="btn-back">
+        <i class="fa-solid fa-arrow-left"></i> Back to Dashboard
+    </a>
+    <div class="detail-meta">
+        <span class="log-lang-badge lang-{{ session.language }}">
+            {{ session.get_language_display }}
+        </span>
+        <span class="risk-badge risk-{{ session.risk_level }}">
+            {{ session.get_risk_level_display }} Risk
+        </span>
+        <span class="detail-date">
+            <i class="fa-solid fa-clock"></i>
+            {{ session.created_at|date:"d M Y, h:i A" }}
+        </span>
+    </div>
+</div>
+
+<div class="detail-grid">
+
+    <div class="detail-left">
+        <div class="section-title">Submitted Code</div>
+        <div class="code-block">
+            <pre><code>{{ session.code }}</code></pre>
+        </div>
+    </div>
+
+    <div class="detail-right">
+        <div class="section-title">
+            {{ session.error_count }} Bug{{ session.error_count|pluralize }} Found
+        </div>
+
+        {% if bugs %}
+            {% for bug in bugs %}
+                <div class="bug-card bug-{{ bug.bug_type }}">
+                    <div class="bug-card-header">
+                        <span class="bug-type-badge bug-type-{{ bug.bug_type }}">
+                            {{ bug.get_bug_type_display }}
+                        </span>
+                        <span class="bug-line">
+                            <i class="fa-solid fa-code"></i> Line {{ bug.line_number }}
+                        </span>
+                    </div>
+                    <div class="bug-description">
+                        <div class="bug-section-label">
+                            <i class="fa-solid fa-circle-exclamation"></i> What's wrong
+                        </div>
+                        <p>{{ bug.description }}</p>
+                    </div>
+                    <div class="bug-fix">
+                        <div class="bug-section-label fix-label">
+                            <i class="fa-solid fa-lightbulb"></i> Fix suggestion
+                        </div>
+                        <p>{{ bug.fix_suggestion }}</p>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <div class="empty-state">
+                <i class="fa-solid fa-circle-check"></i>
+                <p>No bugs found in this session!</p>
+            </div>
+        {% endif %}
+
+    </div>
+</div>
+
+{% endblock %}
